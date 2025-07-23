@@ -1,27 +1,44 @@
 import * as anchor from "@coral-xyz/anchor";
 import { Program } from "@coral-xyz/anchor";
-import { NftMarketplace } from "../target/types/nft_marketplace";
-import { createNft, findMasterEditionPda, findMetadataPda, mplTokenMetadata, verifySizedCollectionItem } from '@metaplex-foundation/mpl-token-metadata'
-import { createUmi } from "@metaplex-foundation/umi-bundle-defaults"
-import { KeypairSigner, PublicKey, createSignerFromKeypair, generateSigner, keypairIdentity, percentAmount, publicKey } from '@metaplex-foundation/umi';
-import { TOKEN_PROGRAM_ID, getOrCreateAssociatedTokenAccount } from "@solana/spl-token";
+import { Marketplace } from "../target/types/marketplace";
+import {
+  createNft,
+  findMasterEditionPda,
+  findMetadataPda,
+  mplTokenMetadata,
+  verifySizedCollectionItem,
+} from "@metaplex-foundation/mpl-token-metadata";
+import { createUmi } from "@metaplex-foundation/umi-bundle-defaults";
+import {
+  KeypairSigner,
+  PublicKey,
+  createSignerFromKeypair,
+  generateSigner,
+  keypairIdentity,
+  percentAmount,
+  publicKey,
+} from "@metaplex-foundation/umi";
+import {
+  TOKEN_PROGRAM_ID,
+  getOrCreateAssociatedTokenAccount,
+} from "@solana/spl-token";
 import NodeWallet from "@coral-xyz/anchor/dist/cjs/nodewallet";
 import { Keypair, LAMPORTS_PER_SOL, SystemProgram } from "@solana/web3.js";
 
-describe("nft-marketplace", () => {
-  // configure the client to use the local cluster.
-  const provider = anchor.AnchorProvider.env()
+describe("anchor-marketplace", () => {
+  const provider = anchor.AnchorProvider.env();
   anchor.setProvider(provider);
-  const program = anchor.workspace.nft_marketplace as Program<NftMarketplace>;
+  const program = anchor.workspace.Marketplace as Program<Marketplace>;
   const connection = provider.connection;
   const umi = createUmi(provider.connection);
   const payer = provider.wallet as NodeWallet;
 
-  // create dummy user and NFT
   let nftMint: KeypairSigner = generateSigner(umi);
   let collectionMint: KeypairSigner = generateSigner(umi);
 
-  const creatorWallet = umi.eddsa.createKeypairFromSecretKey(new Uint8Array(payer.payer.secretKey));
+  const creatorWallet = umi.eddsa.createKeypairFromSecretKey(
+    new Uint8Array(payer.payer.secretKey)
+  );
   const creator = createSignerFromKeypair(umi, creatorWallet);
   umi.use(keypairIdentity(creator));
   umi.use(mplTokenMetadata());
@@ -33,51 +50,83 @@ describe("nft-marketplace", () => {
   const maker = Keypair.generate();
   const taker = Keypair.generate();
 
-  // define variable and calculate pda
   const name = "user123";
   const price = new anchor.BN(1);
 
-  const marketplace = anchor.web3.PublicKey.findProgramAddressSync([Buffer.from("marketplace"), Buffer.from(name)], program.programId)[0];
-  const rewardsMint = anchor.web3.PublicKey.findProgramAddressSync([Buffer.from("rewards"), marketplace.toBuffer()], program.programId)[0];
-  const treasury = anchor.web3.PublicKey.findProgramAddressSync([Buffer.from("treasury"), marketplace.toBuffer()], program.programId)[0];
-  const listing = anchor.web3.PublicKey.findProgramAddressSync([marketplace.toBuffer(), new anchor.web3.PublicKey(nftMint.publicKey as PublicKey).toBuffer()], program.programId)[0];
+  const marketplace = anchor.web3.PublicKey.findProgramAddressSync(
+    [Buffer.from("marketplace"), Buffer.from(name)],
+    program.programId
+  )[0];
+  const rewardsMint = anchor.web3.PublicKey.findProgramAddressSync(
+    [Buffer.from("rewards"), marketplace.toBuffer()],
+    program.programId
+  )[0];
+  const treasury = anchor.web3.PublicKey.findProgramAddressSync(
+    [Buffer.from("treasury"), marketplace.toBuffer()],
+    program.programId
+  )[0];
+  const listing = anchor.web3.PublicKey.findProgramAddressSync(
+    [
+      marketplace.toBuffer(),
+      new anchor.web3.PublicKey(nftMint.publicKey as PublicKey).toBuffer(),
+    ],
+    program.programId
+  )[0];
 
   before(async () => {
-    // get airdrop balance for maker and taker
-    const makerAirdrop = await connection.requestAirdrop(maker.publicKey, 7 * LAMPORTS_PER_SOL);  
-    const takerAirdrop = await connection.requestAirdrop(taker.publicKey, 7 * LAMPORTS_PER_SOL);
+    // Airdrop SOL to maker and taker
+    const makerAirdrop = await connection.requestAirdrop(
+      maker.publicKey,
+      7 * LAMPORTS_PER_SOL
+    );
+    const takerAirdrop = await connection.requestAirdrop(
+      taker.publicKey,
+      7 * LAMPORTS_PER_SOL
+    );
     const latestBlockhash = await connection.getLatestBlockhash();
-    await connection.confirmTransaction({ signature: makerAirdrop, ...latestBlockhash});
-    await connection.confirmTransaction({ signature: takerAirdrop, ...latestBlockhash});
+    await connection.confirmTransaction({
+      signature: makerAirdrop,
+      ...latestBlockhash,
+    });
+    await connection.confirmTransaction({
+      signature: takerAirdrop,
+      ...latestBlockhash,
+    });
     await sleep(2000);
 
-    // mint collection NFT
+    // Mint Collection NFT
     await createNft(umi, {
       mint: collectionMint,
       name: "GM",
       symbol: "GM",
       uri: "https://arweave.net/123",
       sellerFeeBasisPoints: percentAmount(5.5),
-      collectionDetails: {__kind: 'V1', size: 10}
+      collectionDetails: { __kind: "V1", size: 10 },
     }).sendAndConfirm(umi);
-    console.log(`Created collection NFT: ${collectionMint.publicKey.toString()}`);
+    console.log(
+      `Created Collection NFT: ${collectionMint.publicKey.toString()}`
+    );
 
-    // mint NFT into maker's ATA
+    // Mint NFT into maker's ATA
     await createNft(umi, {
       mint: nftMint,
       name: "GM",
       symbol: "GM",
       uri: "https://arweave.net/123",
       sellerFeeBasisPoints: percentAmount(5.5),
-      collectionDetails: {__kind: 'V1', size: 10},
-      tokenOwner: publicKey(maker.publicKey),
+      collection: { verified: false, key: collectionMint.publicKey },
+      tokenOwner: publicKey(maker.publicKey), // Corrected to use maker's public key
     }).sendAndConfirm(umi);
-    console.log(`Create NFT: ${nftMint.publicKey.toString()}`);
+    console.log(`Created NFT: ${nftMint.publicKey.toString()}`);
 
-    // verify collection
-    const collectionMetadata = findMetadataPda(umi, {mint: collectionMint.publicKey});
-    const collectionMasterEdition = findMasterEditionPda(umi, {mint: collectionMint.publicKey});
-    const nftMetadata = findMetadataPda(umi, {mint: nftMint.publicKey});
+    // Verify Collection
+    const collectionMetadata = findMetadataPda(umi, {
+      mint: collectionMint.publicKey,
+    });
+    const collectionMasterEdition = findMasterEditionPda(umi, {
+      mint: collectionMint.publicKey,
+    });
+    const nftMetadata = findMetadataPda(umi, { mint: nftMint.publicKey });
     await verifySizedCollectionItem(umi, {
       metadata: nftMetadata,
       collectionAuthority: creator,
@@ -85,31 +134,36 @@ describe("nft-marketplace", () => {
       collection: collectionMetadata,
       collectionMasterEditionAccount: collectionMasterEdition,
     }).sendAndConfirm(umi);
-    console.log(`Collection NFT verififed`);
+    console.log("Collection NFT Verified!");
 
-    // get or create ATAs
-    makerAta = (await getOrCreateAssociatedTokenAccount(
-      connection,
-      maker,
-      new anchor.web3.PublicKey(nftMint.publicKey),
-      maker.publicKey,
-    )).address;
+    // Get or create ATAs
+    makerAta = (
+      await getOrCreateAssociatedTokenAccount(
+        connection,
+        maker,
+        new anchor.web3.PublicKey(nftMint.publicKey),
+        maker.publicKey
+      )
+    ).address;
 
-    takerAta = (await getOrCreateAssociatedTokenAccount(
-      connection,
-      taker,
-      new anchor.web3.PublicKey(nftMint.publicKey),
-      taker.publicKey,
-    )).address;
+    takerAta = (
+      await getOrCreateAssociatedTokenAccount(
+        connection,
+        taker,
+        new anchor.web3.PublicKey(nftMint.publicKey),
+        taker.publicKey
+      )
+    ).address;
 
-    vault = anchor.utils.token.associatedAddress({
+    vault = await anchor.utils.token.associatedAddress({
       mint: new anchor.web3.PublicKey(nftMint.publicKey),
       owner: listing,
     });
   });
 
   it("Initialize Marketplace!", async () => {
-    const tx = await program.methods.initialize(name, 1)
+    const tx = await program.methods
+      .initialize(name, 1)
       .accountsPartial({
         admin: provider.wallet.publicKey,
         marketplace,
@@ -119,14 +173,16 @@ describe("nft-marketplace", () => {
         tokenProgram: TOKEN_PROGRAM_ID,
       })
       .rpc();
-    console.log(`Marketplace initialized: ${tx}`);
+    console.log("Marketplace Initialized. Tx:", tx);
   });
 
-  it("Listing Initialized!", async () => {
-    const nftMetadata = findMetadataPda(umi, {mint: nftMint.publicKey});
-    const nftEdition = findMasterEditionPda(umi, {mint: nftMint.publicKey});
+  it("Listing!", async () => {
+    const nftMetadata = findMetadataPda(umi, { mint: nftMint.publicKey });
+    const nftEdition = findMasterEditionPda(umi, { mint: nftMint.publicKey });
 
-    const tx = await program.methods.listing(price)
+    // Add your test here.
+    const tx = await program.methods
+      .listing(price)
       .accountsPartial({
         maker: maker.publicKey,
         marketplace,
@@ -142,11 +198,34 @@ describe("nft-marketplace", () => {
       })
       .signers([maker])
       .rpc();
-    console.log(`Listed: ${tx}`);
+    console.log("\nListing Initialized!");
+    console.log("Your transaction signature", tx);
   });
 
+  // it("Delisting!", async () => {
+
+  //   // Add your test here.
+  //   const tx = await program.methods.delist()
+  //   .accountsPartial({
+  //     maker: maker.publicKey,
+  //     marketplace,
+  //     makerMint: nftMint.publicKey,
+  //     makerAta,
+  //     listing,
+  //     vault,
+  //     systemProgram: anchor.web3.SystemProgram.programId,
+  //     tokenProgram: TOKEN_PROGRAM_ID,
+  //   })
+  //   .signers([maker])
+  //   .rpc();
+  //   console.log("\nDelisting Initialized!");
+  //   console.log("Your transaction signature", tx);
+  // });
+
   it("Purchase Initialized!", async () => {
-    const tx = await program.methods.purchase()
+    // Add your test here.
+    const tx = await program.methods
+      .purchase()
       .accountsPartial({
         taker: taker.publicKey,
         maker: maker.publicKey,
@@ -162,10 +241,11 @@ describe("nft-marketplace", () => {
       })
       .signers([taker])
       .rpc();
-    console.log(`Purchased: ${tx}`);
+    console.log("\nPurchase Initialized!");
+    console.log("Your transaction signature", tx);
   });
 });
 
 function sleep(ms: number) {
-  return new Promise(resolve => setTimeout(resolve, ms));
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }

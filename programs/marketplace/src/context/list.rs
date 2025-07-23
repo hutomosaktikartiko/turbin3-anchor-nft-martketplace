@@ -11,31 +11,26 @@ use crate::state::{Listing, Marketplace};
 #[derive(Accounts)]
 pub struct List<'info> {
     #[account(mut)]
-    pub maker: Signer<'info>, // seller must sign transaction
-
+    pub maker: Signer<'info>,
     #[account(
         seeds = [b"marketplace", marketplace.name.as_str().as_bytes()],
         bump = marketplace.bump,
     )]
-    pub marketplace: Account<'info, Marketplace>, // marketplace verification
-
-    pub maker_mint: InterfaceAccount<'info, Mint>, // nft address
-
+    pub marketplace: Account<'info, Marketplace>,
+    pub maker_mint: InterfaceAccount<'info, Mint>,
     #[account(
         mut,
         associated_token::mint = maker_mint,
         associated_token::authority = maker,
     )]
-    pub maker_ata: InterfaceAccount<'info, TokenAccount>, // seller token account for NFT
-
+    pub maker_ata: InterfaceAccount<'info, TokenAccount>,
     #[account(
-        init, // create this account
-        payer = maker, // maker pay this
+        init,
+        payer = maker,
         associated_token::mint = maker_mint,
-        associated_token::authority = listing, // gave authority to pda listing 
+        associated_token::authority = listing,
     )]
-    pub vault: InterfaceAccount<'info, TokenAccount>, // token account for nft when listing
-
+    pub vault: InterfaceAccount<'info, TokenAccount>,
     #[account(
         init,
         payer = maker,
@@ -43,10 +38,8 @@ pub struct List<'info> {
         bump,
         space = Listing::INIT_SPACE,
     )]
-    pub listing: Account<'info, Listing>, // account for listing details
-
+    pub listing: Account<'info, Listing>,
     pub collection_mint: InterfaceAccount<'info, Mint>,
-
     #[account(
         seeds = [
             b"metadata",
@@ -55,22 +48,21 @@ pub struct List<'info> {
         ],
         seeds::program = metadata_program.key(),
         bump,
-        constraint = metadata.collection.as_ref().unwrap().key.as_ref() == collection_mint.key().as_ref(), // validate nft is part of collection or not
-        constraint = metadata.collection.as_ref().unwrap().verified == true, // validate nft verify status
+        constraint = metadata.collection.as_ref().unwrap().key.as_ref() == collection_mint.key().as_ref(),
+        constraint = metadata.collection.as_ref().unwrap().verified == true,
     )]
     pub metadata: Account<'info, MetadataAccount>,
-
     #[account(
         seeds = [
-            b"metadata",
+            b"metadata", 
             metadata_program.key().as_ref(),
             maker_mint.key().as_ref(),
-            b"edition",
+            b"edition"
         ],
         seeds::program = metadata_program.key(),
         bump,
     )]
-    pub master_edition: Account<'info, MasterEditionAccount>, // unique NFT
+    pub master_edition: Account<'info, MasterEditionAccount>,
 
     pub metadata_program: Program<'info, Metadata>,
     pub associated_token_program: Program<'info, AssociatedToken>,
@@ -94,16 +86,15 @@ impl<'info> List<'info> {
         let cpi_program = self.token_program.to_account_info();
 
         let cpi_accounts = TransferChecked {
-            from: self.maker_ata.to_account_info(),
+            from: self.maker.to_account_info(),
             mint: self.maker_mint.to_account_info(),
             to: self.vault.to_account_info(),
             authority: self.maker.to_account_info(),
         };
 
-        let cpi_context = CpiContext::new(cpi_program, cpi_accounts);
+        let cpi_ctx = CpiContext::new(cpi_program, cpi_accounts);
 
-        // transfer 1 NFT and set decimals as 0, using maker_mint.decimals for safety
-        transfer_checked(cpi_context, 1, self.maker_mint.decimals)?;
+        transfer_checked(cpi_ctx, self.maker_ata.amount, self.maker_mint.decimals)?;
 
         Ok(())
     }

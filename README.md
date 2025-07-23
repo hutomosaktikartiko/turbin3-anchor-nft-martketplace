@@ -11,3 +11,17 @@ Marketplace ini melibatkan tiga peran utama yaitu:
 - Pembeli (Taker): Siapa pun yang tertarik dan memiliki dana (SOL) untuk membeli NFT yang sudah terdaftar di marketplace.
 
 Jadi bisa disimpulkan kalau Admin membuat pasar -> Penjual mendaftarkan NFT -> Pembeli membeli NFT. Program inilah yang menjadi pihak ketiga yang tak terlihat yang memastikan setiap langkah dalam alu ini berjalan dengan adil dan aman.
+
+# How to run
+
+1. Copy Metplex Program
+   solana program dump -u m metaqbxxUerdq28cj1RbAWkYQm3ybzjb6a8bt518x1s .anchor/metaplex.so
+
+2. Run Localnet Validator
+   solana-test-validator -r --bpf-program metaqbxxUerdq28cj1RbAWkYQm3ybzjb6a8bt518x1s .anchor/metaplex.so
+
+3. Build Anchor
+   anchor build
+
+4. Run Test
+   anchor test

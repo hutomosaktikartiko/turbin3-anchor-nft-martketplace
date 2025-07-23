@@ -1,12 +1,13 @@
 [toolchain]
 package_manager = "pnpm"
+anchor_version = "0.30.0"
 
 [features]
 resolution = true
 skip-lint = false
 
 [programs.localnet]
-nft_marketplace = "ALakMxNbgg1W9mwC9xTQi4ASDCzGZis8AHZPYRmCi1Cw"
+nft_marketplace = "2zfumnLEef5h94RVLi3CtoPPBWiSySFvePKg5pP64WYh"
 
 [registry]
 url = "https://api.apr.dev"

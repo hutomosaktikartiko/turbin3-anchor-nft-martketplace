@@ -5,37 +5,33 @@ use anchor_spl::{
     token_interface::{Mint, TokenAccount, TokenInterface},
 };
 
-use crate::state::{Listing, Marketplace};
+use crate::state::{listing, Listing, Marketplace};
 
 #[derive(Accounts)]
 pub struct Delist<'info> {
     #[account(mut)]
-    pub maker: Signer<'info>, // only maker can delist
+    pub maker: Signer<'info>,
     pub maker_mint: InterfaceAccount<'info, Mint>,
-
     #[account(
         seeds = [b"marketplace", marketplace.name.as_str().as_bytes()],
         bump = marketplace.bump,
     )]
     pub marketplace: Account<'info, Marketplace>,
-
     #[account(
         mut,
         associated_token::mint = maker_mint,
         associated_token::authority = maker,
     )]
     pub maker_ata: InterfaceAccount<'info, TokenAccount>,
-
     #[account(
         mut,
         associated_token::mint = maker_mint,
-        associated_token::authority = listing, // verify this vault as pda listing
+        associated_token::authority = listing,
     )]
     pub vault: InterfaceAccount<'info, TokenAccount>,
-
     #[account(
         mut,
-        close = maker, // send back rent SOL to maker
+        close = maker,
         seeds = [marketplace.key().as_ref(), maker_mint.key().as_ref()],
         bump = listing.bump,
     )]
@@ -47,7 +43,6 @@ pub struct Delist<'info> {
 }
 
 impl<'info> Delist<'info> {
-    // transfer back NFT from vault to token account maker
     pub fn delist(&mut self) -> Result<()> {
         let cpi_program = self.token_program.to_account_info();
 
@@ -63,6 +58,7 @@ impl<'info> Delist<'info> {
             &self.maker_mint.key().to_bytes()[..],
             &[self.listing.bump],
         ];
+
         let signer_seeds = &[&seeds[..]];
 
         let cpi_ctx = CpiContext::new_with_signer(cpi_program, cpi_accounts, signer_seeds);
@@ -72,8 +68,14 @@ impl<'info> Delist<'info> {
         Ok(())
     }
 
-    // close account & send back rent to maker
     pub fn close_mint_vault(&mut self) -> Result<()> {
+        let seeds = &[
+            &self.marketplace.key().to_bytes()[..],
+            &self.maker_mint.key().to_bytes()[..],
+            &[self.listing.bump],
+        ];
+        let signer_seeds = &[&seeds[..]];
+
         let cpi_program = self.token_program.to_account_info();
 
         let cpi_accounts = CloseAccount {
@@ -81,14 +83,6 @@ impl<'info> Delist<'info> {
             destination: self.maker.to_account_info(),
             authority: self.listing.to_account_info(),
         };
-
-        let seeds = &[
-            &self.marketplace.key().to_bytes()[..],
-            &self.maker_mint.key().to_bytes(),
-            &[self.listing.bump],
-        ];
-
-        let signer_seeds = &[&seeds[..]];
 
         let cpi_ctx = CpiContext::new_with_signer(cpi_program, cpi_accounts, signer_seeds);
 
